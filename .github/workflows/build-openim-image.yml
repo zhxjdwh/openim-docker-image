@@ -44,6 +44,12 @@ jobs:
           echo "short=${SHA:0:7}" >> "$GITHUB_OUTPUT"
           echo "OpenIM revision: ${SHA}"
 
+      - name: Patch Dockerfile toolchain (upstream tag pins golang:1.22 but go.mod requires go >= 1.25)
+        run: |
+          sed -i 's/golang:1\.22-alpine/golang:1.25-alpine/g' open-im-server/Dockerfile
+          echo "--- patched FROM lines ---"
+          grep '^FROM' open-im-server/Dockerfile
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -81,6 +87,7 @@ jobs:
             echo "org.opencontainers.image.source=https://github.com/openimsdk/open-im-server"
             echo "org.opencontainers.image.revision=${{ steps.src.outputs.sha }}"
             echo "org.opencontainers.image.version=${REF}"
+            echo "org.opencontainers.image.description=Built from openimsdk/open-im-server ${REF}; Dockerfile toolchain patched 1.22->1.25 per go.mod requirement"
             echo "LABELS_EOF"
           } >> "$GITHUB_OUTPUT"
 

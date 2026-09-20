@@ -1,0 +1,101 @@
+name: build-openim-image
+
+on:
+  workflow_dispatch:
+    inputs:
+      openim_ref:
+        description: "openimsdk/open-im-server tag or commit to build"
+        required: false
+        default: "v3.8.3-patch.16"
+      platforms:
+        description: "target platforms (comma separated)"
+        required: false
+        default: "linux/amd64,linux/arm64"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-openim-image-${{ github.event.inputs.openim_ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    steps:
+      - name: Checkout CI repo
+        uses: actions/checkout@v4
+
+      - name: Checkout OpenIM source
+        uses: actions/checkout@v4
+        with:
+          repository: openimsdk/open-im-server
+          ref: ${{ inputs.openim_ref }}
+          path: open-im-server
+
+      - name: Resolve source revision
+        id: src
+        run: |
+          SHA=$(git -C open-im-server rev-parse HEAD)
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "short=${SHA:0:7}" >> "$GITHUB_OUTPUT"
+          echo "OpenIM revision: ${SHA}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub (optional, requires secrets DOCKERHUB_USERNAME + DOCKERHUB_TOKEN)
+        if: ${{ env.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Compose image tags and labels
+        id: meta
+        env:
+          REF: ${{ inputs.openim_ref }}
+        run: |
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          SHORT="${{ steps.src.outputs.short }}"
+          TAGS="ghcr.io/${OWNER}/openim-server:${REF},ghcr.io/${OWNER}/openim-server:sha-${SHORT}"
+          if [ -n "$DOCKERHUB_USERNAME" ]; then
+            TAGS="${TAGS},docker.io/${DOCKERHUB_USERNAME}/openim-server:${REF},docker.io/${DOCKERHUB_USERNAME}/openim-server:sha-${SHORT}"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          {
+            echo "labels<<LABELS_EOF"
+            echo "org.opencontainers.image.source=https://github.com/openimsdk/open-im-server"
+            echo "org.opencontainers.image.revision=${{ steps.src.outputs.sha }}"
+            echo "org.opencontainers.image.version=${REF}"
+            echo "LABELS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push multi-arch image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./open-im-server
+          platforms: ${{ inputs.platforms }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify multi-arch manifest
+        run: |
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          docker buildx imagetools inspect "ghcr.io/${OWNER}/openim-server:${{ inputs.openim_ref }}"

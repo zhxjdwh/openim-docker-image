@@ -11,6 +11,10 @@ on:
         description: "target platforms (comma separated)"
         required: false
         default: "linux/amd64,linux/arm64"
+      tag_suffix:
+        description: "suffix appended to the version tag (empty = none)"
+        required: false
+        default: "-1"
 
 permissions:
   contents: read
@@ -68,12 +72,13 @@ jobs:
         id: meta
         env:
           REF: ${{ inputs.openim_ref }}
+          SUFFIX: ${{ inputs.tag_suffix }}
         run: |
           OWNER="${GITHUB_REPOSITORY_OWNER,,}"
           SHORT="${{ steps.src.outputs.short }}"
-          TAGS="ghcr.io/${OWNER}/openim-server:${REF},ghcr.io/${OWNER}/openim-server:sha-${SHORT}"
+          TAGS="ghcr.io/${OWNER}/openim-server:${REF}${SUFFIX},ghcr.io/${OWNER}/openim-server:sha-${SHORT}"
           if [ -n "$DOCKERHUB_USERNAME" ]; then
-            TAGS="${TAGS},docker.io/${DOCKERHUB_USERNAME}/openim-server:${REF},docker.io/${DOCKERHUB_USERNAME}/openim-server:sha-${SHORT}"
+            TAGS="${TAGS},docker.io/${DOCKERHUB_USERNAME}/openim-server:${REF}${SUFFIX},docker.io/${DOCKERHUB_USERNAME}/openim-server:sha-${SHORT}"
           fi
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
           {

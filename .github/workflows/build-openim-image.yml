@@ -86,7 +86,7 @@ jobs:
             echo "org.opencontainers.image.source=https://github.com/openimsdk/open-im-server"
             echo "org.opencontainers.image.revision=${{ steps.src.outputs.sha }}"
             echo "org.opencontainers.image.version=${REF}"
-            echo "org.opencontainers.image.description=Built from openimsdk/open-im-server ${REF}; Dockerfile toolchain patched 1.22->1.25 per go.mod requirement"
+            echo "org.opencontainers.image.description=Built from openimsdk/open-im-server ${REF}; go1.25 toolchain + precompiled mage targets (offline runtime)"
             echo "LABELS_EOF"
           } >> "$GITHUB_OUTPUT"
 

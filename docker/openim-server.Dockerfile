@@ -19,9 +19,6 @@ RUN go mod download
 
 RUN go install github.com/magefile/mage@v1.15.0
 
-# pin gomake like the upstream Dockerfile does
-RUN go get github.com/openimsdk/gomake@v0.0.15-alpha.5
-
 # compile all services into _output
 RUN mage build
 
